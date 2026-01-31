@@ -1,31 +1,7 @@
-#include <print>
 #include <windows.h>
-#include <stdexcept>
 
-#define Ensure(predicate, message) if (!(predicate)) throw std::runtime_error(message)
-
-struct Pixel
-{
-    uint8_t Blue;
-    uint8_t Green;
-    uint8_t Red;
-    uint8_t Alpha;
-};
-
-#define RGBA_TO_PIXEL(rgba) Pixel{ \
-    static_cast<uint8_t>(((rgba) >>  8) & 0xFF), \
-    static_cast<uint8_t>(((rgba) >> 16) & 0xFF), \
-    static_cast<uint8_t>(((rgba) >> 24) & 0xFF), \
-    static_cast<uint8_t>(((rgba) >>  0) & 0xFF)  \
-}
-
-void ResetColor(Pixel* pixels, int width, int height, Pixel color)
-{
-    for (int i = 0; i < width * height; ++i)
-    {
-        pixels[i] = color;
-    }
-}
+#include "Common.hpp"
+#include "Renderer.hpp"
 
 auto main() -> int
 {
@@ -49,8 +25,6 @@ auto main() -> int
     auto memContext = CreateCompatibleDC(deviceContext);
     Ensure(memContext != nullptr, "Failed to create compatible device context.");
 
-    SetWindowsHook(WH_KEYBOARD_LL, LowLevelKeyboardProc);
-
     ShowWindow(windowHandle, SW_SHOW);
     UpdateWindow(windowHandle);
 
@@ -62,12 +36,12 @@ auto main() -> int
     bitMapInfo.bmiHeader.biBitCount = 32;
     bitMapInfo.bmiHeader.biCompression = BI_RGB;
 
-    void* bits = nullptr;
+    void* bitmap = nullptr;
     auto bitmapHandle = CreateDIBSection(
         memContext,
         &bitMapInfo,
         DIB_RGB_COLORS,
-        &bits,
+        &bitmap,
         nullptr,
         0
     );
@@ -76,7 +50,7 @@ auto main() -> int
     auto oldBitmap = SelectObject(memContext, bitmapHandle);
     Ensure(oldBitmap != nullptr, "Failed to select bitmap into device context.");
 
-    auto* pixels = static_cast<Pixel*>(bits);
+    Renderer renderer(bitmap, w, h);
 
     BLENDFUNCTION blendFunction = {};
     blendFunction.BlendOp = AC_SRC_OVER;
@@ -100,7 +74,7 @@ auto main() -> int
             DispatchMessage(&msg);
         }
 
-        ResetColor(pixels, w, h, RGBA_TO_PIXEL(0x000000A0));
+        renderer.ClearColor(RGBA_TO_COLOR(0x000000A0));
 
         POINT cursorPos;
         GetCursorPos(&cursorPos);
@@ -108,24 +82,7 @@ auto main() -> int
         auto cursorY = cursorPos.y - y;
 
         const auto radius = 100;
-        for (int col = -radius; col <= radius; ++col)
-        {
-            for (int row = -radius; row <= radius; ++row)
-            {
-                auto index = cursorX + col + (cursorY + row) * w;
-                if (index < 0 || index >= w * h)
-                    continue;
-
-                if (col == -radius || col == radius || row == -radius || row == radius)
-                {
-                    pixels[cursorX + col + (cursorY + row) * w] = RGBA_TO_PIXEL(0xFFFFFFFF);
-                }
-                else
-                {
-                    pixels[cursorX + col + (cursorY + row) * w] = RGBA_TO_PIXEL(0x00000000);
-                }
-            }
-        }
+        renderer.DrawRectangle(cursorX - radius, cursorY - radius, radius * 2, radius * 2, RGBA_TO_COLOR(0x00000000), true, RGBA_TO_COLOR(0xFFFFFFFF));
 
         UpdateLayeredWindow(
             windowHandle,
