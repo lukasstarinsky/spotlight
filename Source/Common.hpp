@@ -18,3 +18,9 @@ using u64 = std::uint64_t;
 
 using f32 = float;
 using f64 = double;
+
+struct Vec2
+{
+    i32 X;
+    i32 Y;
+};
